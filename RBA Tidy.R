@@ -139,7 +139,60 @@ ggplot(rba_sentiments1, aes(x = date, y = rebased*100)) +
 # Write csv file for data
 #write.csv(rba_sentiments1, "Sentiment.csv", row.names = FALSE)
 
-# 
+# tf-idf------------------------------------------------------------------------
+# try and see which words are the most distinct for each statement, that what
+#  are the key words for the statement
+# http://tidytextmining.com/tfidf.html#the-bind_tf_idf-function
+
+# Total words in the document
+total_words <- data %>% 
+      group_by(document) %>% 
+      summarize(total = sum(count))
+
+# Combine data with total number of words
+rba_words <- left_join(data, total_words)
+rba_words # Inspect 
+
+# get the tf-idf metric
+rba_words <- rba_words %>%
+      bind_tf_idf(term, document, count)
+rba_words # inspect
+
+# rearrange from highest to lowest
+rba_words %>%
+      select(-total) %>%
+      arrange(desc(tf_idf))
+
+# Get into data frame for plotting
+plot_rba <- rba_words %>%
+      arrange(desc(tf_idf)) %>%
+      mutate(term = factor(term, levels = rev(unique(term))))
+
+# Plot result
+ggplot(plot_rba[1:20,], aes(term, tf_idf, fill = document)) +
+      geom_bar(stat = "identity") +
+      labs(x = NULL, y = "tf-idf") +
+      coord_flip()
+
+# Transform to R date
+plot_rba$date <- as.Date(as.yearmon(gsub(".txt", "", plot_rba$document),
+                                           "%b%y"))
+plot_rba$date1 <- as.factor(plot_rba$date) # turn date in to factor
+
+# get the top 15 terms for plotting in the last 6mths
+plot_rba <- plot_rba %>% 
+      subset(date >= Sys.Date() - 180) %>%
+      group_by(date1) %>% 
+      top_n(15, tf_idf) %>% 
+      ungroup
+
+# Plot the key words form the statement
+plot_rba %>%
+      ggplot(aes(term, tf_idf, fill = date1)) +
+      geom_bar(stat = "identity", show.legend = FALSE) +
+      labs(x = NULL, y = "tf-idf") +
+      facet_wrap(~date1, ncol = 2, scales = "free") +
+      coord_flip()
 
 # Topic Modelling---------------------------------------------------------------
 # http://tidytextmining.com/topicmodeling.html
